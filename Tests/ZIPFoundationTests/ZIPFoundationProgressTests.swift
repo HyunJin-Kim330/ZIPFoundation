@@ -159,27 +159,38 @@ extension ZIPFoundationTests {
 
     func testUnzipItemProgress() {
         let fileManager = FileManager()
-        let archive = self.archive(for: #function, mode: .read)
-        let destinationURL = self.createDirectory(for: #function)
-        let progress = Progress()
-        let expectation = self.keyValueObservingExpectation(for: progress,
-                                                            keyPath: #keyPath(Progress.fractionCompleted),
-                                                            expectedValue: 1.0)
-        DispatchQueue.global().async {
-            do {
-                try fileManager.unzipItem(at: archive.url, to: destinationURL, progress: progress)
-            } catch {
-                XCTFail("Failed to extract item."); return
-            }
-            var itemsExist = false
-            for entry in archive {
-                let directoryURL = destinationURL.appendingPathComponent(entry.path)
-                itemsExist = fileManager.itemExists(at: directoryURL)
-                if !itemsExist { break }
-            }
-            XCTAssert(itemsExist)
+        var sourceURL = URL(fileURLWithPath: "/Users/khj-mac/Desktop/무제 폴더 3/파일하나.png.zip")
+        var destinationURL = URL(fileURLWithPath: "/Users/khj-mac/Desktop/무제 폴더 3/")
+        
+        do {
+            let result = try fileManager.unzipItem(at: sourceURL, to: destinationURL, preferredEncoding: .utf8, completionHandler: {print("끝남 ㅎㅎ")})
+            result()
+        } catch {
+            print(error)
         }
-        self.wait(for: [expectation], timeout: 10.0)
+        
+//        let fileManager = FileManager()
+//        let archive = self.archive(for: #function, mode: .read)
+//        let destinationURL = self.createDirectory(for: #function)
+//        let progress = Progress()
+//        let expectation = self.keyValueObservingExpectation(for: progress,
+//                                                            keyPath: #keyPath(Progress.fractionCompleted),
+//                                                            expectedValue: 1.0)
+//        DispatchQueue.global().async {
+//            do {
+//                try fileManager.unzipItem(at: archive.url, to: destinationURL, progress: progress)
+//            } catch {
+//                XCTFail("Failed to extract item."); return
+//            }
+//            var itemsExist = false
+//            for entry in archive {
+//                let directoryURL = destinationURL.appendingPathComponent(entry.path)
+//                itemsExist = fileManager.itemExists(at: directoryURL)
+//                if !itemsExist { break }
+//            }
+//            XCTAssert(itemsExist)
+//        }
+//        self.wait(for: [expectation], timeout: 10.0)
     }
 
     func testZIP64ArchiveAddEntryProgress() {

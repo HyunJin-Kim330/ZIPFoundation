@@ -106,7 +106,7 @@ extension ZIPFoundationTests {
         let archive = self.archive(for: #function, mode: .read)
         let destinationURL = self.createDirectory(for: #function)
         do {
-            try fileManager.unzipItem(at: archive.url, to: destinationURL)
+            let result = try fileManager.unzipItem(at: archive.url, to: destinationURL, completionHandler: {print()})
         } catch {
             XCTFail("Failed to extract item."); return
         }
@@ -125,7 +125,7 @@ extension ZIPFoundationTests {
         let archive = self.archive(for: #function, mode: .read, preferredEncoding: encoding)
         let destinationURL = self.createDirectory(for: #function)
         do {
-            try fileManager.unzipItem(at: archive.url, to: destinationURL, preferredEncoding: encoding)
+            let reslt = try fileManager.unzipItem(at: archive.url, to: destinationURL, preferredEncoding: encoding, completionHandler: {print()})
         } catch {
             XCTFail("Failed to extract item."); return
         }
@@ -148,7 +148,7 @@ extension ZIPFoundationTests {
         existingURL.appendPathComponent("faust.txt")
         let fileManager = FileManager()
         do {
-            try fileManager.unzipItem(at: nonexistantArchiveURL, to: ZIPFoundationTests.tempZipDirectoryURL)
+            let result = try fileManager.unzipItem(at: nonexistantArchiveURL, to: ZIPFoundationTests.tempZipDirectoryURL, completionHandler: {print()})
             XCTFail("Error when unzipping non-existant archive not raised")
         } catch let error as CocoaError {
             XCTAssertTrue(error.code == CocoaError.fileReadNoSuchFile)
@@ -156,7 +156,7 @@ extension ZIPFoundationTests {
         do {
             try fileManager.createParentDirectoryStructure(for: existingURL)
             fileManager.createFile(atPath: existingURL.path, contents: Data(), attributes: nil)
-            try fileManager.unzipItem(at: existingArchiveURL, to: destinationURL)
+            let result = try fileManager.unzipItem(at: existingArchiveURL, to: destinationURL, completionHandler: {print()})
             XCTFail("Error when unzipping archive to existing destination not raised")
         } catch let error as CocoaError {
             XCTAssertTrue(error.code == CocoaError.fileWriteFileExists)
@@ -165,7 +165,7 @@ extension ZIPFoundationTests {
         }
         let nonZipArchiveURL = self.resourceURL(for: #function, pathExtension: "png")
         do {
-            try fileManager.unzipItem(at: nonZipArchiveURL, to: destinationURL)
+            let result = try fileManager.unzipItem(at: nonZipArchiveURL, to: destinationURL, completionHandler: {print()})
             XCTFail("Error when trying to unzip non-archive not raised")
         } catch let error as Archive.ArchiveError {
             XCTAssertTrue(error == .unreadableArchive)
@@ -257,7 +257,7 @@ private struct ZIPInfo: Hashable {
                 .standardizedFileURL
                 .appendingPathComponent(UUID().uuidString)
             let keys: [URLResourceKey] = [.fileSizeKey, .creationDateKey, .isDirectoryKey, .pathKey]
-            try? fileManager.unzipItem(at: url, to: tempDirectoryURL)
+            let result = try? fileManager.unzipItem(at: url, to: tempDirectoryURL, completionHandler: {print()})
             guard let enumerator = fileManager.enumerator(at: tempDirectoryURL, includingPropertiesForKeys: keys)
             else { return [] }
 

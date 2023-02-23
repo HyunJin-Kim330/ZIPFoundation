@@ -304,7 +304,7 @@ extension ZIPFoundationTests {
         let archive = self.archive(for: #function, mode: .read)
         let destinationURL = self.createDirectory(for: #function)
         do {
-            try fileManager.unzipItem(at: archive.url, to: destinationURL)
+            let result = try fileManager.unzipItem(at: archive.url, to: destinationURL, completionHandler: {print()})
         } catch let error as Archive.ArchiveError {
             XCTAssert(error == Archive.ArchiveError.invalidCRC32)
             return
@@ -319,7 +319,7 @@ extension ZIPFoundationTests {
         let archive = self.archive(for: #function, mode: .read)
         let destinationURL = self.createDirectory(for: #function)
         do {
-            try fileManager.unzipItem(at: archive.url, to: destinationURL)
+            let result = try fileManager.unzipItem(at: archive.url, to: destinationURL, completionHandler: {print()})
         } catch {
             XCTAssert((error as? CocoaError)?.code == .fileReadInvalidFileName); return
         }

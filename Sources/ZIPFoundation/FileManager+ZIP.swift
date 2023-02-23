@@ -29,9 +29,9 @@ extension FileManager {
     ///                        By default, `zipItem` will create uncompressed archives.
     ///   - progress: A progress object that can be used to track or cancel the zip operation.
     /// - Throws: Throws an error if the source item does not exist or the destination URL is not writable.
-    public func zipItem(at sourceURL: URL, to destinationURL: URL,
+    func zipItem(at sourceURL: URL, to destinationURL: URL,
                         shouldKeepParent: Bool = true, compressionMethod: CompressionMethod = .none,
-                        progress: Progress? = nil) throws {
+                        progress: Progress? = nil, completionHandler: @escaping VoidVoidClosure) throws -> VoidVoidClosure {
         let fileManager = FileManager()
         guard fileManager.itemExists(at: sourceURL) else {
             throw CocoaError(.fileReadNoSuchFile, userInfo: [NSFilePathErrorKey: sourceURL.path])
@@ -80,6 +80,7 @@ extension FileManager {
             try archive.addEntry(with: sourceURL.lastPathComponent, relativeTo: baseURL,
                                  compressionMethod: compressionMethod, progress: progress)
         }
+        return completionHandler
     }
 
     /// Unzips the contents at the specified source URL to the destination URL.
@@ -91,8 +92,21 @@ extension FileManager {
     ///   - progress: A progress object that can be used to track or cancel the unzip operation.
     ///   - preferredEncoding: Encoding for entry paths. Overrides the encoding specified in the archive.
     /// - Throws: Throws an error if the source item does not exist or the destination URL is not writable.
-    public func unzipItem(at sourceURL: URL, to destinationURL: URL, skipCRC32: Bool = false,
-                          progress: Progress? = nil, preferredEncoding: String.Encoding? = nil) throws {
+    ///
+    ///    zip파일의 종류는 3가지가 있습니다.
+    ///    1. 파일이나 폴더가 오직 하나만 있는 압축파일
+    ///    2. 폴더 하나밑에 여러가지 파일 및 폴더가 있는 압축파일
+    ///    3. 최상위 트리가 없고 그냥 여러 가지 파일 및 폴더가 압축된 압축파일
+    ///
+    ///    특정 압축파일의 Archive를 생성하면 그 안의 모든 파일 및 폴더가 배열형태로 저장된 entries를 반환합니다.
+    ///    C언어 기반 라이브러리를 쓰고 있기 때문에 '__MACOSX'폴더와 같은 메타정보들이 자동으로 생겨납니다. 구글링 결과 이들을 삭제해도 아무 이상 없다는 판단을 하게 되었습니다.
+    ///
+    ///
+    ///
+    typealias VoidVoidClosure = () -> Void
+    
+    func unzipItem(at sourceURL: URL, to destinationURL: URL, skipCRC32: Bool = false,
+                   progress: Progress? = nil, preferredEncoding: String.Encoding? = nil, completionHandler: @escaping VoidVoidClosure ) throws -> VoidVoidClosure {
         let fileManager = FileManager()
         guard fileManager.itemExists(at: sourceURL) else {
             throw CocoaError(.fileReadNoSuchFile, userInfo: [NSFilePathErrorKey: sourceURL.path])
@@ -106,13 +120,59 @@ extension FileManager {
             totalUnitCount = archive.reduce(0, { $0 + archive.totalUnitCountForReading($1) })
             progress.totalUnitCount = totalUnitCount
         }
+        
+        let entries: [Entry] = deletingMeta(archive: archive, preferredEncoding: preferredEncoding)
+        
+        // 폴더만들기
+        var newSourceURL = sourceURL.deletingLastPathComponent()
+        var oneFolderDownName: String = ""
+        if entries.count >= 2 {
+            // 2번 유형의 압축파일인지 검사
+            if isOneFolderDown(entries: entries, preferredEncoding: preferredEncoding) {
+                // 엔트리 경로를 다 바꿔줘야됨, 폴더생성아님
+                oneFolderDownName = getFirstName(entries, preferredEncoding: preferredEncoding)
+                if fileManager.fileExists(atPath: destinationURL.path + "/\(oneFolderDownName)") {
+                    oneFolderDownName = getSaveLocationName(path: destinationURL.path + "/\(oneFolderDownName)")
+                }
+            } else {
+                //중복검사
+                var folderName = sourceURL.deletingPathExtension().lastPathComponent
+                if fileManager.fileExists(atPath: sourceURL.deletingPathExtension().path) {
+                    folderName = getSaveLocationName(path: sourceURL.path)
+                }
+                newSourceURL = appendingURL(origin: newSourceURL, component: folderName)
+                do {
+                    try fileManager.createDirectory(at: newSourceURL, withIntermediateDirectories: true)
+                } catch {
+                    print(error)
+                }
+            }
+        }
 
-        for entry in archive {
-            let path = preferredEncoding == nil ? entry.path : entry.path(using: preferredEncoding!)
-            let entryURL = destinationURL.appendingPathComponent(path)
+        for entry in entries {
+            var path = preferredEncoding == nil ? entry.path : entry.path(using: preferredEncoding!)
+            var entryURL = destinationURL // 여기서 이름 다르게 주면 정상적으로 저장됨
+
+            if entries.count >= 2 {
+                if isOneFolderDown(entries: entries, preferredEncoding: preferredEncoding) {
+                    path = changeEntryPath(entry: entry, folderName: oneFolderDownName, preferredEncoding: preferredEncoding)
+                    entryURL = appendingURL(origin: entryURL, component: path)
+                } else {
+                    entryURL = appendingURL(origin: newSourceURL, component: path)
+                }
+            } else { // 원소가 하나일때
+                let fileExtension = getUrl(path: path).pathExtension
+                let fileURL = appendingURL(origin: destinationURL, component: path)
+                if fileManager.fileExists(atPath: fileURL.path) {
+                    let newFileName = getSaveLocationName(path: fileURL.path)
+                    entryURL = appendingURL(origin: entryURL, component: newFileName).appendingPathExtension(fileExtension)
+                } else {
+                    entryURL = fileURL
+                }
+            }
+            
             guard entryURL.isContained(in: destinationURL) else {
-                throw CocoaError(.fileReadInvalidFileName,
-                                 userInfo: [NSFilePathErrorKey: entryURL.path])
+                throw CocoaError(.fileReadInvalidFileName, userInfo: [NSFilePathErrorKey: entryURL.path])
             }
             let crc32: CRC32
             if let progress = progress {
@@ -129,6 +189,98 @@ extension FileManager {
                 }
             }
             try verifyChecksumIfNecessary()
+        }
+        return completionHandler
+    }
+    
+    func getSaveLocationName(path: String, fileNumber: Int = 2) -> String {
+        let url = getUrl(path: path)
+        let urlExtension = url.pathExtension
+        var temp = url.deletingPathExtension().path + " \(fileNumber)"
+           if urlExtension != "" && urlExtension != "zip" {
+            temp.append(".\(urlExtension)")
+        }
+        
+        if FileManager.default.fileExists(atPath: temp) {
+            return getSaveLocationName(path: path, fileNumber: fileNumber + 1)
+        } else {
+            return getUrl(path: temp).deletingPathExtension().lastPathComponent
+        }
+    }
+    
+    func deletingMeta(archive: Archive, preferredEncoding: String.Encoding? = nil) -> [Entry] {
+        var entries: [Entry] = []
+        
+        for entry in archive {
+            let path = preferredEncoding == nil ? entry.path : entry.path(using: preferredEncoding!)
+            
+            if path.contains("__MACOSX") {
+                continue
+            }
+            entries.append(entry)
+        }
+        return entries
+    }
+    
+    // 2번 유형의 압축파일인지 검사하는 함수
+    func isOneFolderDown(entries: [Entry], preferredEncoding: String.Encoding? = nil) -> Bool {
+        var componentNum: [Int] = []
+        
+        for entry in entries {
+            let path = preferredEncoding == nil ? entry.path : entry.path(using: preferredEncoding!)
+            let url = getUrl(path: path)
+            componentNum.append(url.pathComponents.count)
+//            print(url.pathComponents)
+        }
+        componentNum.sort()
+        
+        if componentNum[0] == componentNum[1] {
+            return false
+        } else {
+            return true
+        }
+    }
+    
+//    func changeOneFolderDownEntry(entries: [Entry], folderName: String, preferredEncoding: String.Encoding? = nil) -> [Entry] {
+//        let path = preferredEncoding == nil ? entries[0].path : entries[0].path(using: preferredEncoding!)
+//        let originName = path.replacingOccurrences(of: "/", with: "")
+//        var newEntry: [Entry] = []
+//
+//        for entry in entries {
+//            var path = preferredEncoding == nil ? entry.path : entry.path(using: preferredEncoding!)
+//            let firstIndex =  path.firstIndex(of: "/")!
+//            path = String(path[firstIndex...])
+//            path = folderName + path
+//            entry.
+//        }
+//    }
+    
+    func changeEntryPath(entry: Entry, folderName: String, preferredEncoding: String.Encoding? = nil) -> String {
+        var path = preferredEncoding == nil ? entry.path : entry.path(using: preferredEncoding!)
+        let firstIndex =  path.firstIndex(of: "/")!
+        path = String(path[firstIndex...])
+        path = folderName + path
+        return path
+    }
+    
+    func getFirstName(_ entry: [Entry], preferredEncoding: String.Encoding? = nil) -> String {
+        let path = preferredEncoding == nil ? entry[0].path : entry[0].path(using: preferredEncoding!)
+        return path.replacingOccurrences(of: "/", with: "")
+    }
+    
+    func appendingURL(origin: URL, component: String) -> URL {
+        if #available(macOS 13.0, *) {
+            return origin.appending(components: component)
+        } else {
+            return origin.appendingPathComponent(component)
+        }
+    }
+    
+    func getUrl(path: String) -> URL {
+        if #available(macOS 13.0, *) {
+            return URL(filePath: path)
+        } else {
+            return URL(fileURLWithPath: path)
         }
     }
 

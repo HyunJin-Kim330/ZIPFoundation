@@ -124,7 +124,7 @@ extension ZIPFoundationTests {
         let testQueue = DispatchQueue.global()
         testQueue.async {
             do {
-                try fileManager.zipItem(at: assetURL, to: fileArchiveURL, progress: fileProgress)
+                let result = try fileManager.zipItem(at: assetURL, to: fileArchiveURL, progress: fileProgress, completionHandler: {print()})
             } catch { didSucceed = false }
         }
         var directoryURL = ZIPFoundationTests.tempZipDirectoryURL
@@ -144,7 +144,7 @@ extension ZIPFoundationTests {
                 try fileManager.copyItem(at: assetURL, to: newAssetURL)
                 try fileManager.createSymbolicLink(at: directoryURL.appendingPathComponent("link"),
                                                    withDestinationURL: newAssetURL)
-                try fileManager.zipItem(at: directoryURL, to: directoryArchiveURL, progress: directoryProgress)
+                let result = try fileManager.zipItem(at: directoryURL, to: directoryArchiveURL, progress: directoryProgress, completionHandler: {print()})
             } catch { didSucceed = false }
         }
         self.wait(for: [fileExpectation, directoryExpectation], timeout: 20.0)

@@ -12,7 +12,7 @@ import Foundation
 
 extension FileManager {
     typealias CentralDirectoryStructure = Entry.CentralDirectoryStructure
-
+    typealias VoidVoidClosure = () -> Void
     /// Zips the file or directory contents at the specified source URL to the destination URL.
     ///
     /// If the item at the source URL is a directory, the directory itself will be
@@ -29,9 +29,9 @@ extension FileManager {
     ///                        By default, `zipItem` will create uncompressed archives.
     ///   - progress: A progress object that can be used to track or cancel the zip operation.
     /// - Throws: Throws an error if the source item does not exist or the destination URL is not writable.
-    func zipItem(at sourceURL: URL, to destinationURL: URL,
+    public func zipItem(at sourceURL: URL, to destinationURL: URL,
                         shouldKeepParent: Bool = true, compressionMethod: CompressionMethod = .none,
-                        progress: Progress? = nil, completionHandler: @escaping VoidVoidClosure) throws -> VoidVoidClosure {
+                        progress: Progress? = nil, completionHandler: @escaping (()->Void)) throws -> (() -> Void){
         let fileManager = FileManager()
         guard fileManager.itemExists(at: sourceURL) else {
             throw CocoaError(.fileReadNoSuchFile, userInfo: [NSFilePathErrorKey: sourceURL.path])
@@ -103,10 +103,9 @@ extension FileManager {
     ///
     ///
     ///
-    typealias VoidVoidClosure = () -> Void
     
-    func unzipItem(at sourceURL: URL, to destinationURL: URL, skipCRC32: Bool = false,
-                   progress: Progress? = nil, preferredEncoding: String.Encoding? = nil, completionHandler: @escaping VoidVoidClosure ) throws -> VoidVoidClosure {
+    public func unzipItem(at sourceURL: URL, to destinationURL: URL, skipCRC32: Bool = false,
+                   progress: Progress? = nil, preferredEncoding: String.Encoding? = nil, completionHandler: @escaping (() -> Void ) ) throws -> (() -> Void) {
         let fileManager = FileManager()
         guard fileManager.itemExists(at: sourceURL) else {
             throw CocoaError(.fileReadNoSuchFile, userInfo: [NSFilePathErrorKey: sourceURL.path])

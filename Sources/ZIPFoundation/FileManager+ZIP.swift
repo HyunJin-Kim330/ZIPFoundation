@@ -213,7 +213,7 @@ extension FileManager {
         for entry in archive {
             let path = preferredEncoding == nil ? entry.path : entry.path(using: preferredEncoding!)
             
-            if path.contains("__MACOSX") || path.contains(".DS_Store") {
+            if path.contains("__MACOSX") || path.contains(".DS_Store"){
                 continue
             }
             entries.append(entry)
@@ -229,7 +229,6 @@ extension FileManager {
             let path = preferredEncoding == nil ? entry.path : entry.path(using: preferredEncoding!)
             let url = getUrl(path: path)
             componentNum.append(url.pathComponents.count)
-//            print(url.pathComponents)
         }
         componentNum.sort()
         
@@ -240,20 +239,7 @@ extension FileManager {
         }
     }
     
-//    func changeOneFolderDownEntry(entries: [Entry], folderName: String, preferredEncoding: String.Encoding? = nil) -> [Entry] {
-//        let path = preferredEncoding == nil ? entries[0].path : entries[0].path(using: preferredEncoding!)
-//        let originName = path.replacingOccurrences(of: "/", with: "")
-//        var newEntry: [Entry] = []
-//
-//        for entry in entries {
-//            var path = preferredEncoding == nil ? entry.path : entry.path(using: preferredEncoding!)
-//            let firstIndex =  path.firstIndex(of: "/")!
-//            path = String(path[firstIndex...])
-//            path = folderName + path
-//            entry.
-//        }
-//    }
-    
+    // 2번 유형의 압축파일에서 모든 엔트리 경로의 첫 번째 이름을 바꿔줘야 함
     func changeEntryPath(entry: Entry, folderName: String, preferredEncoding: String.Encoding? = nil) -> String {
         var path = preferredEncoding == nil ? entry.path : entry.path(using: preferredEncoding!)
         let firstIndex =  path.firstIndex(of: "/")!
@@ -262,9 +248,22 @@ extension FileManager {
         return path
     }
     
-    func getFirstName(_ entry: [Entry], preferredEncoding: String.Encoding? = nil) -> String {
-        let path = preferredEncoding == nil ? entry[0].path : entry[0].path(using: preferredEncoding!)
-        return path.replacingOccurrences(of: "/", with: "")
+    func getFirstName(_ entries: [Entry], preferredEncoding: String.Encoding? = nil) -> String {
+        var paths: [String] = []
+        var componentNum: [Int] = []
+
+        for entry in entries {
+            let path = preferredEncoding == nil ? entry.path : entry.path(using: preferredEncoding!)
+            paths.append(path)
+
+            let url = getUrl(path: path)
+            componentNum.append(url.pathComponents.count)
+            //print(url.pathComponents)
+        }
+
+        let min = componentNum.min()!
+        let index = componentNum.firstIndex(of: min)!
+        return paths[index].replacingOccurrences(of: "/", with: "")
     }
     
     func appendingURL(origin: URL, component: String) -> URL {

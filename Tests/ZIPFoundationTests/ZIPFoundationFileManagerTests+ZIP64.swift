@@ -109,7 +109,7 @@ extension ZIPFoundationTests {
         var fileArchiveURL = ZIPFoundationTests.tempZipDirectoryURL
         fileArchiveURL.appendPathComponent(self.archiveName(for: testFunction))
         do {
-            try FileManager().zipItem(at: assetURL, to: fileArchiveURL, compressionMethod: compressionMethod)
+            let result = try FileManager().zipItem(at: assetURL, to: fileArchiveURL, compressionMethod: compressionMethod, completionHandler: {print()})
         } catch {
             throw ZIP64FileManagerTestsError.failedToZipItem(url: assetURL)
         }

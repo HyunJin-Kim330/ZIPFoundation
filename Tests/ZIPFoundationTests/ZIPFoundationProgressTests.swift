@@ -159,7 +159,7 @@ extension ZIPFoundationTests {
 
     func testUnzipItemProgress() {
         let fileManager = FileManager()
-        var sourceURL = URL(fileURLWithPath: "/Users/khj-mac/Desktop/무제 폴더 3/파일하나.png.zip")
+        var sourceURL = URL(fileURLWithPath: "/Users/khj-mac/Desktop/무제 폴더 3/폴더하나.zip")
         var destinationURL = URL(fileURLWithPath: "/Users/khj-mac/Desktop/무제 폴더 3/")
         
         do {

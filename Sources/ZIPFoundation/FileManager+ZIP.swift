@@ -213,7 +213,7 @@ extension FileManager {
         for entry in archive {
             let path = preferredEncoding == nil ? entry.path : entry.path(using: preferredEncoding!)
             
-            if path.contains("__MACOSX") {
+            if path.contains("__MACOSX") || path.contains(".DS_Store") {
                 continue
             }
             entries.append(entry)

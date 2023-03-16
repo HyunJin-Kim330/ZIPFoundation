@@ -156,41 +156,52 @@ extension ZIPFoundationTests {
         XCTAssert(archive.checkIntegrity())
         XCTAssert(directoryArchive.checkIntegrity())
     }
+    
+    func testZipItems() {
+        let fileManager = FileManager()
+        let zipFiles: [URL] = [URL(fileURLWithPath: "/Volumes/보안드라이브/sf.pptx"), URL(fileURLWithPath: "/Volumes/보안드라이브/sf 2.pptx")]
+        let zipLocation: URL = URL(fileURLWithPath: "/Volumes/보안드라이브/아카이브.zip")
+        
+        do {
+            _ = try fileManager.zipItem(at: zipFiles[0], to: zipLocation, completionHandler: {print()})
+        } catch {
+            let err = error as NSError
+            if let posixError = err.userInfo["NSUnderlyingError"] as? NSError {
+                print(posixError.code)
+            }
+        }
+        
+        if zipFiles.count >= 2 {
+            guard let archive = Archive(url: zipLocation, accessMode: .update) else {
+                return
+            }
+
+            for i in 1 ..< zipFiles.count {
+                do {
+                    try archive.addEntry(with: zipFiles[i].lastPathComponent, relativeTo: zipFiles[i].deletingLastPathComponent())
+                } catch {
+                    let err = error as NSError
+                    print(err.code)
+                }
+            }
+        }
+    }
 
     func testUnzipItemProgress() {
         let fileManager = FileManager()
-        var sourceURL = URL(fileURLWithPath: "/Users/khj-mac/Desktop/무제 폴더 3/폴더하나.zip")
-        var destinationURL = URL(fileURLWithPath: "/Users/khj-mac/Desktop/무제 폴더 3/")
+        let sourceURL = URL(fileURLWithPath: "/Users/khj-mac/Desktop/무제 폴더 2/아카이브 2.zip")
+        let destinationURL = URL(fileURLWithPath: "/Users/khj-mac/Desktop/무제 폴더 2/")
+//        let sourceURL = URL(fileURLWithPath: "/Volumes/보안드라이브/아카이브.zip")
+//        let destinationURL = URL(fileURLWithPath: "/Volumes/보안드라이브/아카이브")
+        
         
         do {
-            let result = try fileManager.unzipItem(at: sourceURL, to: destinationURL, preferredEncoding: .utf8, completionHandler: {print("끝남 ㅎㅎ")})
+            let result = try fileManager.unzipItem(at: sourceURL, to: destinationURL, progress: Progress(), preferredEncoding: .utf8, completionHandler: {print("끝남 ㅎㅎ")})
             result()
         } catch {
-            print(error)
+            let err = error as NSError
+            print(err.code)
         }
-        
-//        let fileManager = FileManager()
-//        let archive = self.archive(for: #function, mode: .read)
-//        let destinationURL = self.createDirectory(for: #function)
-//        let progress = Progress()
-//        let expectation = self.keyValueObservingExpectation(for: progress,
-//                                                            keyPath: #keyPath(Progress.fractionCompleted),
-//                                                            expectedValue: 1.0)
-//        DispatchQueue.global().async {
-//            do {
-//                try fileManager.unzipItem(at: archive.url, to: destinationURL, progress: progress)
-//            } catch {
-//                XCTFail("Failed to extract item."); return
-//            }
-//            var itemsExist = false
-//            for entry in archive {
-//                let directoryURL = destinationURL.appendingPathComponent(entry.path)
-//                itemsExist = fileManager.itemExists(at: directoryURL)
-//                if !itemsExist { break }
-//            }
-//            XCTAssert(itemsExist)
-//        }
-//        self.wait(for: [expectation], timeout: 10.0)
     }
 
     func testZIP64ArchiveAddEntryProgress() {

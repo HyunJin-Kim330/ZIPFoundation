@@ -115,12 +115,13 @@ extension FileManager {
         }
 
         var totalUnitCount = Int64(0)
-        if let progress = progress {
-            totalUnitCount = archive.reduce(0, { $0 + archive.totalUnitCountForReading($1) })
-            progress.totalUnitCount = totalUnitCount
-        }
         
         let entries: [Entry] = deletingMeta(archive: archive, preferredEncoding: preferredEncoding)
+        
+        if let progress = progress {
+            totalUnitCount = entries.reduce(0, { $0 + archive.totalUnitCountForReading($1) })
+            progress.totalUnitCount = totalUnitCount
+        }
         
         // 폴더만들기
         var newSourceURL = sourceURL.deletingLastPathComponent()
@@ -174,10 +175,11 @@ extension FileManager {
                 throw CocoaError(.fileReadInvalidFileName, userInfo: [NSFilePathErrorKey: entryURL.path])
             }
             let crc32: CRC32
-            if let progress = progress {
+            if let progress {
                 let entryProgress = archive.makeProgressForReading(entry)
                 progress.addChild(entryProgress, withPendingUnitCount: entryProgress.totalUnitCount)
                 crc32 = try archive.extract(entry, to: entryURL, skipCRC32: skipCRC32, progress: entryProgress)
+                //print(progress.fileCompletedCount)
             } else {
                 crc32 = try archive.extract(entry, to: entryURL, skipCRC32: skipCRC32)
             }

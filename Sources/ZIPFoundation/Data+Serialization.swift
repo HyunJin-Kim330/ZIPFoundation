@@ -104,7 +104,8 @@ extension Data {
         }
         let error = ferror(file)
         if error > 0 {
-            throw DataError.unwritableFile
+            //throw DataError.unwritableFile
+            throw POSIXError(errno, path: "")
         }
         return sizeWritten
     }

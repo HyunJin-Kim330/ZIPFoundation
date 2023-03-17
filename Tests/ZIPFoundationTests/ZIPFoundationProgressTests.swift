@@ -191,10 +191,10 @@ extension ZIPFoundationTests {
 
     func testUnzipItemProgress() {
         let fileManager = FileManager()
-        let sourceURL = URL(fileURLWithPath: "/Users/khj-mac/Desktop/무제 폴더 2/아카이브 2.zip")
-        let destinationURL = URL(fileURLWithPath: "/Users/khj-mac/Desktop/무제 폴더 2/")
-//        let sourceURL = URL(fileURLWithPath: "/Volumes/보안드라이브/아카이브.zip")
-//        let destinationURL = URL(fileURLWithPath: "/Volumes/보안드라이브/아카이브")
+//        let sourceURL = URL(fileURLWithPath: "/Users/khj-mac/Desktop/무제 폴더 2/아카이브 2.zip")
+//        let destinationURL = URL(fileURLWithPath: "/Users/khj-mac/Desktop/무제 폴더 2/")
+        let sourceURL = URL(fileURLWithPath: "/Volumes/보안드라이브/무제 폴더.zip")
+        let destinationURL = URL(fileURLWithPath: "/Volumes/보안드라이브")
         
         
         do {

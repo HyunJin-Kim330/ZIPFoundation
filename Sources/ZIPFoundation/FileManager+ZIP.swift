@@ -69,7 +69,7 @@ extension FileManager {
         
         // 아카이브를 만들 수 없을 때
         guard let archive = Archive(url: destinationURL, accessMode: .create) else {
-            if errno == 28 {
+            if errno == 28 {  // 아카이브조차 만들 수 없을 때 용량부족에러이면 posixError로 변환하여 던진다
                 throw POSIXError.init(28, path: "")
             }
             throw Archive.ArchiveError.unwritableArchive
@@ -139,6 +139,8 @@ extension FileManager {
     public func unzipItem(at sourceURL: URL, to destinationURL: URL, skipCRC32: Bool = false,
                    progress: Progress? = nil, preferredEncoding: String.Encoding? = nil, completionHandler: @escaping (() -> Void ) ) throws -> (() -> Void) {
         let fileManager = FileManager()
+        var createdList: [URL] = []  // 용량 부족 에러발생 시 생성되었던 모든 파일을 지우기 위해
+        
         guard fileManager.itemExists(at: sourceURL) else {
             throw CocoaError(.fileReadNoSuchFile, userInfo: [NSFilePathErrorKey: sourceURL.path])
         }
@@ -175,6 +177,7 @@ extension FileManager {
                 newSourceURL = appendingURL(origin: newSourceURL, component: folderName)
                 do {
                     try fileManager.createDirectory(at: newSourceURL, withIntermediateDirectories: true)
+                    createdList.append(newSourceURL)
                 } catch {
                     print(error)
                 }
@@ -189,6 +192,7 @@ extension FileManager {
                 if isOneFolderDown(entries: entries, preferredEncoding: preferredEncoding) {
                     path = changeEntryPath(entry: entry, folderName: oneFolderDownName, preferredEncoding: preferredEncoding)
                     entryURL = appendingURL(origin: entryURL, component: path)
+                    createdList.append(entryURL)
                 } else {
                     entryURL = appendingURL(origin: newSourceURL, component: path)
                 }
@@ -207,13 +211,27 @@ extension FileManager {
                 throw CocoaError(.fileReadInvalidFileName, userInfo: [NSFilePathErrorKey: entryURL.path])
             }
             let crc32: CRC32
-            if let progress {
-                let entryProgress = archive.makeProgressForReading(entry)
-                progress.addChild(entryProgress, withPendingUnitCount: entryProgress.totalUnitCount)
-                crc32 = try archive.extract(entry, to: entryURL, skipCRC32: skipCRC32, progress: entryProgress)
-                //print(progress.fileCompletedCount)
-            } else {
-                crc32 = try archive.extract(entry, to: entryURL, skipCRC32: skipCRC32)
+            
+            do {
+                if let progress {
+                    let entryProgress = archive.makeProgressForReading(entry)
+                    progress.addChild(entryProgress, withPendingUnitCount: entryProgress.totalUnitCount)
+                    crc32 = try archive.extract(entry, to: entryURL, skipCRC32: skipCRC32, progress: entryProgress)
+                    //print(progress.fileCompletedCount)
+                } else {
+                    crc32 = try archive.extract(entry, to: entryURL, skipCRC32: skipCRC32)
+                }
+            } catch {
+                let err = error as NSError
+                
+                if err.code == 28 { // 용량 부족 에러이면 생성되었던 파일을 삭제한다.
+                    for file in createdList {
+                        if fileManager.fileExists(atPath: file.path) {
+                            try fileManager.removeItem(at: file)
+                        }
+                    }
+                }
+                throw err
             }
 
             func verifyChecksumIfNecessary() throws {

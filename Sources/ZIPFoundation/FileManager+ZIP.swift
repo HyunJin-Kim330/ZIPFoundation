@@ -33,13 +33,45 @@ extension FileManager {
                         shouldKeepParent: Bool = true, compressionMethod: CompressionMethod = .none,
                         progress: Progress? = nil, completionHandler: @escaping (()->Void)) throws -> (() -> Void){
         let fileManager = FileManager()
+    
+        // 압축하고자 하는 파일이 주어진 경로에 없을 때
         guard fileManager.itemExists(at: sourceURL) else {
             throw CocoaError(.fileReadNoSuchFile, userInfo: [NSFilePathErrorKey: sourceURL.path])
         }
+        
+        // 이미 압축하고자 하는 파일명과 동일한 파일이 존재할 때
         guard !fileManager.itemExists(at: destinationURL) else {
             throw CocoaError(.fileWriteFileExists, userInfo: [NSFilePathErrorKey: destinationURL.path])
         }
+        
+//        // 보안드라이브 용량이 꽉찼을 때
+//        if destinationURL.deletingLastPathComponent().path == "/Volumes/보안드라이브" {
+//            let fileBiteString = shell("wc -c \(sourceURL.path) | awk '{print $1}'")
+//            let fileBite = fileBiteString.replacingOccurrences(of: "\n", with: "")
+//            let byteCountFomatter = ByteCountFormatter()
+//            byteCountFomatter.allowedUnits = .useMB
+//            var size = byteCountFomatter.string(fromByteCount: Int64(fileBite)!)
+//            
+//            let index = size.firstIndex(of: "M")!
+//            size = String(size[..<index])
+//            size = size.replacingOccurrences(of: ",", with: "")
+//
+//            let doubleSize = Double(size)
+//            var fileSize = 0.0
+//            
+//            if let doubleSize {
+//                fileSize = doubleSize
+//            }
+//            
+//            
+//            
+//        }
+        
+        // 아카이브를 만들 수 없을 때
         guard let archive = Archive(url: destinationURL, accessMode: .create) else {
+            if errno == 28 {
+                throw POSIXError.init(28, path: "")
+            }
             throw Archive.ArchiveError.unwritableArchive
         }
         let isDirectory = try FileManager.typeForItem(at: sourceURL) == .directory
@@ -282,6 +314,22 @@ extension FileManager {
         } else {
             return URL(fileURLWithPath: path)
         }
+    }
+    
+    func shell(_ command: String) -> String {
+        let task = Process()
+        let pipe = Pipe()
+
+        task.standardOutput = pipe
+        task.standardError = pipe
+        task.arguments = ["-c", command]
+        task.launchPath = "/bin/zsh"
+        task.launch()
+
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        let output = String(data: data, encoding: .utf8)!
+
+        return output
     }
 
     // MARK: - Helpers

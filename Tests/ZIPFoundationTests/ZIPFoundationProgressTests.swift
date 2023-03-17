@@ -160,15 +160,17 @@ extension ZIPFoundationTests {
     func testZipItems() {
         let fileManager = FileManager()
         let zipFiles: [URL] = [URL(fileURLWithPath: "/Volumes/보안드라이브/sf.pptx"), URL(fileURLWithPath: "/Volumes/보안드라이브/sf 2.pptx")]
-        let zipLocation: URL = URL(fileURLWithPath: "/Volumes/보안드라이브/아카이브.zip")
+        let zipLocation: URL = URL(fileURLWithPath: "/Volumes/보안드라이브/아카이브e.zip")
         
         do {
             _ = try fileManager.zipItem(at: zipFiles[0], to: zipLocation, completionHandler: {print()})
         } catch {
             let err = error as NSError
-            if let posixError = err.userInfo["NSUnderlyingError"] as? NSError {
-                print(posixError.code)
-            }
+            print(err.code)
+            
+//            if let posixError = err.userInfo["NSUnderlyingError"] as? NSError {
+//                print(posixError.code)
+//            }
         }
         
         if zipFiles.count >= 2 {

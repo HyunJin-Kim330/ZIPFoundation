@@ -31,48 +31,30 @@ extension FileManager {
     /// - Throws: Throws an error if the source item does not exist or the destination URL is not writable.
     public func zipItem(at sourceURL: URL, to destinationURL: URL,
                         shouldKeepParent: Bool = true, compressionMethod: CompressionMethod = .none,
-                        progress: Progress? = nil, completionHandler: @escaping (()->Void)) throws -> (() -> Void){
+                        progress: Progress? = nil, completionHandler: @escaping ((Error?)->Void)) throws {
         let fileManager = FileManager()
+        var error: Error
     
         // 압축하고자 하는 파일이 주어진 경로에 없을 때
         guard fileManager.itemExists(at: sourceURL) else {
-            throw CocoaError(.fileReadNoSuchFile, userInfo: [NSFilePathErrorKey: sourceURL.path])
+            error = CocoaError(.fileReadNoSuchFile, userInfo: [NSFilePathErrorKey: sourceURL.path])
+            return completionHandler(error)
         }
         
         // 이미 압축하고자 하는 파일명과 동일한 파일이 존재할 때
         guard !fileManager.itemExists(at: destinationURL) else {
-            throw CocoaError(.fileWriteFileExists, userInfo: [NSFilePathErrorKey: destinationURL.path])
+            error = CocoaError(.fileWriteFileExists, userInfo: [NSFilePathErrorKey: destinationURL.path])
+            return completionHandler(error)
         }
-        
-//        // 보안드라이브 용량이 꽉찼을 때
-//        if destinationURL.deletingLastPathComponent().path == "/Volumes/보안드라이브" {
-//            let fileBiteString = shell("wc -c \(sourceURL.path) | awk '{print $1}'")
-//            let fileBite = fileBiteString.replacingOccurrences(of: "\n", with: "")
-//            let byteCountFomatter = ByteCountFormatter()
-//            byteCountFomatter.allowedUnits = .useMB
-//            var size = byteCountFomatter.string(fromByteCount: Int64(fileBite)!)
-//            
-//            let index = size.firstIndex(of: "M")!
-//            size = String(size[..<index])
-//            size = size.replacingOccurrences(of: ",", with: "")
-//
-//            let doubleSize = Double(size)
-//            var fileSize = 0.0
-//            
-//            if let doubleSize {
-//                fileSize = doubleSize
-//            }
-//            
-//            
-//            
-//        }
         
         // 아카이브를 만들 수 없을 때
         guard let archive = Archive(url: destinationURL, accessMode: .create) else {
             if errno == 28 {  // 아카이브조차 만들 수 없을 때 용량부족에러이면 posixError로 변환하여 던진다
-                throw POSIXError.init(28, path: "")
+                error = POSIXError.init(28, path: "")
+                return completionHandler(error)
             }
-            throw Archive.ArchiveError.unwritableArchive
+            error = Archive.ArchiveError.unwritableArchive
+            return completionHandler(error)
         }
         let isDirectory = try FileManager.typeForItem(at: sourceURL) == .directory
         if isDirectory {
@@ -112,7 +94,7 @@ extension FileManager {
             try archive.addEntry(with: sourceURL.lastPathComponent, relativeTo: baseURL,
                                  compressionMethod: compressionMethod, progress: progress)
         }
-        return completionHandler
+        return completionHandler(nil)
     }
 
     /// Unzips the contents at the specified source URL to the destination URL.

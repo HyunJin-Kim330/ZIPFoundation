@@ -31,70 +31,71 @@ extension FileManager {
     /// - Throws: Throws an error if the source item does not exist or the destination URL is not writable.
     public func zipItem(at sourceURL: URL, to destinationURL: URL,
                         shouldKeepParent: Bool = true, compressionMethod: CompressionMethod = .none,
-                        progress: Progress? = nil, completionHandler: @escaping ((Error?)->Void)) throws {
+                        progress: Progress? = nil, completionHandler: @escaping ((Error?)->Void)) {
         let fileManager = FileManager()
-        var error: Error
     
-        // 압축하고자 하는 파일이 주어진 경로에 없을 때
-        guard fileManager.itemExists(at: sourceURL) else {
-            error = CocoaError(.fileReadNoSuchFile, userInfo: [NSFilePathErrorKey: sourceURL.path])
-            return completionHandler(error)
-        }
-        
-        // 이미 압축하고자 하는 파일명과 동일한 파일이 존재할 때
-        guard !fileManager.itemExists(at: destinationURL) else {
-            error = CocoaError(.fileWriteFileExists, userInfo: [NSFilePathErrorKey: destinationURL.path])
-            return completionHandler(error)
-        }
-        
-        // 아카이브를 만들 수 없을 때
-        guard let archive = Archive(url: destinationURL, accessMode: .create) else {
-            if errno == 28 {  // 아카이브조차 만들 수 없을 때 용량부족에러이면 posixError로 변환하여 던진다
-                error = POSIXError.init(28, path: "")
-                return completionHandler(error)
-            }
-            error = Archive.ArchiveError.unwritableArchive
-            return completionHandler(error)
-        }
-        let isDirectory = try FileManager.typeForItem(at: sourceURL) == .directory
-        if isDirectory {
-            var subPaths = try self.subpathsOfDirectory(atPath: sourceURL.path)
-            // Enforce an entry for the root directory to preserve its file attributes
-            if shouldKeepParent { subPaths.append("") }
-            var totalUnitCount = Int64(0)
-            if let progress = progress {
-                totalUnitCount = subPaths.reduce(Int64(0), {
-                    let itemURL = sourceURL.appendingPathComponent($1)
-                    let itemSize = archive.totalUnitCountForAddingItem(at: itemURL)
-                    return $0 + itemSize
-                })
-                progress.totalUnitCount = totalUnitCount
-            }
-
-            // If the caller wants to keep the parent directory, we use the lastPathComponent of the source URL
-            // as common base for all entries (similar to macOS' Archive Utility.app)
-            let directoryPrefix = sourceURL.lastPathComponent
-            for entryPath in subPaths {
-                let finalEntryPath = shouldKeepParent ? directoryPrefix + "/" + entryPath : entryPath
-                let finalBaseURL = shouldKeepParent ? sourceURL.deletingLastPathComponent() : sourceURL
-                if let progress = progress {
-                    let itemURL = sourceURL.appendingPathComponent(entryPath)
-                    let entryProgress = archive.makeProgressForAddingItem(at: itemURL)
-                    progress.addChild(entryProgress, withPendingUnitCount: entryProgress.totalUnitCount)
-                    try archive.addEntry(with: finalEntryPath, relativeTo: finalBaseURL,
-                                         compressionMethod: compressionMethod, progress: entryProgress)
-                } else {
-                    try archive.addEntry(with: finalEntryPath, relativeTo: finalBaseURL,
-                                         compressionMethod: compressionMethod)
+        DispatchQueue.global().async {
+            do {
+                // 압축하고자 하는 파일이 주어진 경로에 없을 때
+                guard fileManager.itemExists(at: sourceURL) else {
+                    throw CocoaError(.fileReadNoSuchFile, userInfo: [NSFilePathErrorKey: sourceURL.path])
                 }
+                
+                // 이미 압축하고자 하는 파일명과 동일한 파일이 존재할 때
+                guard !fileManager.itemExists(at: destinationURL) else {
+                    throw CocoaError(.fileWriteFileExists, userInfo: [NSFilePathErrorKey: destinationURL.path])
+                }
+                
+                // 아카이브를 만들 수 없을 때
+                guard let archive = Archive(url: destinationURL, accessMode: .create) else {
+                    if errno == 28 {  // 아카이브조차 만들 수 없을 때 용량부족에러이면 posixError로 변환하여 던진다
+                        throw POSIXError.init(28, path: "")
+                    }
+                    throw Archive.ArchiveError.unwritableArchive
+                }
+                let isDirectory = try FileManager.typeForItem(at: sourceURL) == .directory
+                if isDirectory {
+                    var subPaths = try self.subpathsOfDirectory(atPath: sourceURL.path)
+                    // Enforce an entry for the root directory to preserve its file attributes
+                    if shouldKeepParent { subPaths.append("") }
+                    var totalUnitCount = Int64(0)
+                    if let progress = progress {
+                        totalUnitCount = subPaths.reduce(Int64(0), {
+                            let itemURL = sourceURL.appendingPathComponent($1)
+                            let itemSize = archive.totalUnitCountForAddingItem(at: itemURL)
+                            return $0 + itemSize
+                        })
+                        progress.totalUnitCount = totalUnitCount
+                    }
+                    
+                    // If the caller wants to keep the parent directory, we use the lastPathComponent of the source URL
+                    // as common base for all entries (similar to macOS' Archive Utility.app)
+                    let directoryPrefix = sourceURL.lastPathComponent
+                    for entryPath in subPaths {
+                        let finalEntryPath = shouldKeepParent ? directoryPrefix + "/" + entryPath : entryPath
+                        let finalBaseURL = shouldKeepParent ? sourceURL.deletingLastPathComponent() : sourceURL
+                        if let progress = progress {
+                            let itemURL = sourceURL.appendingPathComponent(entryPath)
+                            let entryProgress = archive.makeProgressForAddingItem(at: itemURL)
+                            progress.addChild(entryProgress, withPendingUnitCount: entryProgress.totalUnitCount)
+                            try archive.addEntry(with: finalEntryPath, relativeTo: finalBaseURL,
+                                                 compressionMethod: compressionMethod, progress: entryProgress)
+                        } else {
+                            try archive.addEntry(with: finalEntryPath, relativeTo: finalBaseURL,
+                                                 compressionMethod: compressionMethod)
+                        }
+                    }
+                } else {
+                    progress?.totalUnitCount = archive.totalUnitCountForAddingItem(at: sourceURL)
+                    let baseURL = sourceURL.deletingLastPathComponent()
+                    try archive.addEntry(with: sourceURL.lastPathComponent, relativeTo: baseURL,
+                                         compressionMethod: compressionMethod, progress: progress)
+                }
+                completionHandler(nil)
+            } catch {
+                completionHandler(error)
             }
-        } else {
-            progress?.totalUnitCount = archive.totalUnitCountForAddingItem(at: sourceURL)
-            let baseURL = sourceURL.deletingLastPathComponent()
-            try archive.addEntry(with: sourceURL.lastPathComponent, relativeTo: baseURL,
-                                 compressionMethod: compressionMethod, progress: progress)
         }
-        return completionHandler(nil)
     }
 
     /// Unzips the contents at the specified source URL to the destination URL.

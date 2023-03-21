@@ -250,7 +250,7 @@ extension FileManager {
         }
     }
     
-    func unzipItem(at sourceURL: URL, to destinationURL: URL, skipCRC32: Bool = false,
+    public func unzipItem(at sourceURL: URL, to destinationURL: URL, skipCRC32: Bool = false,
                               progress: Progress? = nil, preferredEncoding: String.Encoding? = nil) throws {
             let fileManager = FileManager()
             guard fileManager.itemExists(at: sourceURL) else {

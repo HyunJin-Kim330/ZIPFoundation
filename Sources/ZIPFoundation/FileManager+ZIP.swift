@@ -138,111 +138,116 @@ extension FileManager {
     ///
     
     public func unzipItem(at sourceURL: URL, to destinationURL: URL, skipCRC32: Bool = false,
-                   progress: Progress? = nil, preferredEncoding: String.Encoding? = nil, completionHandler: @escaping (() -> Void ) ) throws -> (() -> Void) {
-        let fileManager = FileManager()
-        var createdList: [URL] = []  // 용량 부족 에러발생 시 생성되었던 모든 파일을 지우기 위해
-        
-        guard fileManager.itemExists(at: sourceURL) else {
-            throw CocoaError(.fileReadNoSuchFile, userInfo: [NSFilePathErrorKey: sourceURL.path])
-        }
-        guard let archive = Archive(url: sourceURL, accessMode: .read, preferredEncoding: preferredEncoding) else {
-            throw Archive.ArchiveError.unreadableArchive
-        }
-
-        var totalUnitCount = Int64(0)
-        
-        let entries: [Entry] = deletingMeta(archive: archive, preferredEncoding: preferredEncoding)
-        
-        if let progress = progress {
-            totalUnitCount = entries.reduce(0, { $0 + archive.totalUnitCountForReading($1) })
-            progress.totalUnitCount = totalUnitCount
-        }
-        
-        // 폴더만들기
-        var newSourceURL = sourceURL.deletingLastPathComponent()
-        var oneFolderDownName: String = ""
-        if entries.count >= 2 {
-            // 2번 유형의 압축파일인지 검사
-            if isOneFolderDown(entries: entries, preferredEncoding: preferredEncoding) {
-                // 엔트리 경로를 다 바꿔줘야됨, 폴더생성아님
-                oneFolderDownName = getFirstName(entries, preferredEncoding: preferredEncoding)
-                if fileManager.fileExists(atPath: destinationURL.path + "/\(oneFolderDownName)") {
-                    oneFolderDownName = getSaveLocationName(path: destinationURL.path + "/\(oneFolderDownName)")
-                }
-            } else {
-                //중복검사
-                var folderName = sourceURL.deletingPathExtension().lastPathComponent
-                if fileManager.fileExists(atPath: sourceURL.deletingPathExtension().path) {
-                    folderName = getSaveLocationName(path: sourceURL.path)
-                }
-                newSourceURL = appendingURL(origin: newSourceURL, component: folderName)
-                do {
-                    try fileManager.createDirectory(at: newSourceURL, withIntermediateDirectories: true)
-                    createdList.append(newSourceURL)
-                } catch {
-                    print(error)
-                }
+                   progress: Progress? = nil, preferredEncoding: String.Encoding? = nil, completionHandler: @escaping ((Error?)->Void)) {
+        do {
+            let fileManager = FileManager()
+            var createdList: [URL] = []  // 용량 부족 에러발생 시 생성되었던 모든 파일을 지우기 위해
+            
+            guard fileManager.itemExists(at: sourceURL) else {
+                throw CocoaError(.fileReadNoSuchFile, userInfo: [NSFilePathErrorKey: sourceURL.path])
             }
-        }
-
-        for entry in entries {
-            var path = preferredEncoding == nil ? entry.path : entry.path(using: preferredEncoding!)
-            var entryURL = destinationURL // 여기서 이름 다르게 주면 정상적으로 저장됨
-
+            guard let archive = Archive(url: sourceURL, accessMode: .read, preferredEncoding: preferredEncoding) else {
+                throw Archive.ArchiveError.unreadableArchive
+            }
+            
+            var totalUnitCount = Int64(0)
+            
+            let entries: [Entry] = deletingMeta(archive: archive, preferredEncoding: preferredEncoding)
+            
+            if let progress = progress {
+                totalUnitCount = entries.reduce(0, { $0 + archive.totalUnitCountForReading($1) })
+                progress.totalUnitCount = totalUnitCount
+            }
+            
+            // 폴더만들기
+            var newSourceURL = sourceURL.deletingLastPathComponent()
+            var oneFolderDownName: String = ""
             if entries.count >= 2 {
+                // 2번 유형의 압축파일인지 검사
                 if isOneFolderDown(entries: entries, preferredEncoding: preferredEncoding) {
-                    path = changeEntryPath(entry: entry, folderName: oneFolderDownName, preferredEncoding: preferredEncoding)
-                    entryURL = appendingURL(origin: entryURL, component: path)
-                    createdList.append(entryURL)
+                    // 엔트리 경로를 다 바꿔줘야됨, 폴더생성아님
+                    oneFolderDownName = getFirstName(entries, preferredEncoding: preferredEncoding)
+                    if fileManager.fileExists(atPath: destinationURL.path + "/\(oneFolderDownName)") {
+                        oneFolderDownName = getSaveLocationName(path: destinationURL.path + "/\(oneFolderDownName)")
+                    }
                 } else {
-                    entryURL = appendingURL(origin: newSourceURL, component: path)
-                }
-            } else { // 원소가 하나일때
-                let fileExtension = getUrl(path: path).pathExtension
-                let fileURL = appendingURL(origin: destinationURL, component: path)
-                if fileManager.fileExists(atPath: fileURL.path) {
-                    let newFileName = getSaveLocationName(path: fileURL.path)
-                    entryURL = appendingURL(origin: entryURL, component: newFileName).appendingPathExtension(fileExtension)
-                } else {
-                    entryURL = fileURL
-                }
-            }
-            
-            guard entryURL.isContained(in: destinationURL) else {
-                throw CocoaError(.fileReadInvalidFileName, userInfo: [NSFilePathErrorKey: entryURL.path])
-            }
-            let crc32: CRC32
-            
-            do {
-                if let progress {
-                    let entryProgress = archive.makeProgressForReading(entry)
-                    progress.addChild(entryProgress, withPendingUnitCount: entryProgress.totalUnitCount)
-                    crc32 = try archive.extract(entry, to: entryURL, skipCRC32: skipCRC32, progress: entryProgress)
-                    //print(progress.fileCompletedCount)
-                } else {
-                    crc32 = try archive.extract(entry, to: entryURL, skipCRC32: skipCRC32)
-                }
-            } catch {
-                let err = error as NSError
-                
-                if err.code == 28 { // 용량 부족 에러이면 생성되었던 파일을 삭제한다.
-                    for file in createdList {
-                        if fileManager.fileExists(atPath: file.path) {
-                            try fileManager.removeItem(at: file)
-                        }
+                    //중복검사
+                    var folderName = sourceURL.deletingPathExtension().lastPathComponent
+                    if fileManager.fileExists(atPath: sourceURL.deletingPathExtension().path) {
+                        folderName = getSaveLocationName(path: sourceURL.path)
+                    }
+                    newSourceURL = appendingURL(origin: newSourceURL, component: folderName)
+                    do {
+                        try fileManager.createDirectory(at: newSourceURL, withIntermediateDirectories: true)
+                        createdList.append(newSourceURL)
+                    } catch {
+                        print(error)
                     }
                 }
-                throw err
             }
-
-            func verifyChecksumIfNecessary() throws {
-                if skipCRC32 == false, crc32 != entry.checksum {
-                    throw Archive.ArchiveError.invalidCRC32
+            
+            for entry in entries {
+                var path = preferredEncoding == nil ? entry.path : entry.path(using: preferredEncoding!)
+                var entryURL = destinationURL // 여기서 이름 다르게 주면 정상적으로 저장됨
+                
+                if entries.count >= 2 {
+                    if isOneFolderDown(entries: entries, preferredEncoding: preferredEncoding) {
+                        path = changeEntryPath(entry: entry, folderName: oneFolderDownName, preferredEncoding: preferredEncoding)
+                        entryURL = appendingURL(origin: entryURL, component: path)
+                        createdList.append(entryURL)
+                    } else {
+                        entryURL = appendingURL(origin: newSourceURL, component: path)
+                    }
+                } else { // 원소가 하나일때
+                    let fileExtension = getUrl(path: path).pathExtension
+                    let fileURL = appendingURL(origin: destinationURL, component: path)
+                    if fileManager.fileExists(atPath: fileURL.path) {
+                        let newFileName = getSaveLocationName(path: fileURL.path)
+                        entryURL = appendingURL(origin: entryURL, component: newFileName).appendingPathExtension(fileExtension)
+                    } else {
+                        entryURL = fileURL
+                    }
                 }
+                
+                guard entryURL.isContained(in: destinationURL) else {
+                    throw CocoaError(.fileReadInvalidFileName, userInfo: [NSFilePathErrorKey: entryURL.path])
+                }
+                let crc32: CRC32
+                
+                do {
+                    if let progress {
+                        let entryProgress = archive.makeProgressForReading(entry)
+                        progress.addChild(entryProgress, withPendingUnitCount: entryProgress.totalUnitCount)
+                        crc32 = try archive.extract(entry, to: entryURL, skipCRC32: skipCRC32, progress: entryProgress)
+                        //print(progress.fileCompletedCount)
+                    } else {
+                        crc32 = try archive.extract(entry, to: entryURL, skipCRC32: skipCRC32)
+                    }
+                } catch {
+                    let err = error as NSError
+                    
+                    if err.code == 28 { // 용량 부족 에러이면 생성되었던 파일을 삭제한다.
+                        for file in createdList {
+                            if fileManager.fileExists(atPath: file.path) {
+                                try fileManager.removeItem(at: file)
+                            }
+                        }
+                    }
+                    throw err
+                }
+                
+                func verifyChecksumIfNecessary() throws {
+                    if skipCRC32 == false, crc32 != entry.checksum {
+                        throw Archive.ArchiveError.invalidCRC32
+                    }
+                }
+                try verifyChecksumIfNecessary()
             }
-            try verifyChecksumIfNecessary()
+            completionHandler(nil)
+            return
+        } catch {
+            completionHandler(error)
         }
-        return completionHandler
     }
     
     func getSaveLocationName(path: String, fileNumber: Int = 2) -> String {

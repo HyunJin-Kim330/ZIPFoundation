@@ -104,6 +104,13 @@ extension FileManager {
                 
                 completionHandler(nil)
             } catch {
+                do {
+                    if FileManager.default.fileExists(atPath: destinationURL.path) {
+                        try FileManager.default.removeItem(at: destinationURL)
+                    }
+                } catch {
+                    print(error)
+                }
                 completionHandler(error)
             }
         }

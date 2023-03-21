@@ -137,7 +137,7 @@ extension FileManager {
     ///
     ///
     
-    public func unzipItem(at sourceURL: URL, to destinationURL: URL, skipCRC32: Bool = false,
+    public func customUnzipItem(at sourceURL: URL, to destinationURL: URL, skipCRC32: Bool = false,
                    progress: Progress? = nil, preferredEncoding: String.Encoding? = nil, completionHandler: @escaping ((Error?)->Void)) {
         do {
             let fileManager = FileManager()
@@ -249,6 +249,47 @@ extension FileManager {
             completionHandler(error)
         }
     }
+    
+    func unzipItem(at sourceURL: URL, to destinationURL: URL, skipCRC32: Bool = false,
+                              progress: Progress? = nil, preferredEncoding: String.Encoding? = nil) throws {
+            let fileManager = FileManager()
+            guard fileManager.itemExists(at: sourceURL) else {
+                throw CocoaError(.fileReadNoSuchFile, userInfo: [NSFilePathErrorKey: sourceURL.path])
+            }
+            guard let archive = Archive(url: sourceURL, accessMode: .read, preferredEncoding: preferredEncoding) else {
+                throw Archive.ArchiveError.unreadableArchive
+            }
+
+            var totalUnitCount = Int64(0)
+            if let progress = progress {
+                totalUnitCount = archive.reduce(0, { $0 + archive.totalUnitCountForReading($1) })
+                progress.totalUnitCount = totalUnitCount
+            }
+
+            for entry in archive {
+                let path = preferredEncoding == nil ? entry.path : entry.path(using: preferredEncoding!)
+                let entryURL = destinationURL.appendingPathComponent(path)
+                guard entryURL.isContained(in: destinationURL) else {
+                    throw CocoaError(.fileReadInvalidFileName,
+                                     userInfo: [NSFilePathErrorKey: entryURL.path])
+                }
+                let crc32: CRC32
+                if let progress = progress {
+                    let entryProgress = archive.makeProgressForReading(entry)
+                    progress.addChild(entryProgress, withPendingUnitCount: entryProgress.totalUnitCount)
+                    crc32 = try archive.extract(entry, to: entryURL, skipCRC32: skipCRC32, progress: entryProgress)
+                } else {
+                    crc32 = try archive.extract(entry, to: entryURL, skipCRC32: skipCRC32)
+                }
+
+                func verifyChecksumIfNecessary() throws {
+                    if skipCRC32 == false, crc32 != entry.checksum {
+                        throw Archive.ArchiveError.invalidCRC32
+                    }
+                }
+                try verifyChecksumIfNecessary()
+            }
+        }
     
     func getSaveLocationName(path: String, fileNumber: Int = 2) -> String {
         let url = getUrl(path: path)
